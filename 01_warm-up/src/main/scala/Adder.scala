@@ -33,14 +33,8 @@ class HalfAdder extends Module{
   /* 
    * TODO: Describe output behaviour based on the input values
    */
-   when(io.a === 1.U && io.b === 1.U) {
-    io.s := 0.U
-    io.c := 1.U
-   } .otherwise {
-    io.s := io.a + io.b
-    io.c := 0.U
-   }
-
+   io.s := io.a ^ io.b
+   io.c := io.a & io.b
 
 }
 
