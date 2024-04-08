@@ -7,9 +7,9 @@ name: 02_single-cycle_RISC-V_core
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "madalienThesisPrep" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "madalienThesisPrep" ]
 
 permissions:
   contents: read
