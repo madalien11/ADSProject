@@ -55,17 +55,32 @@ class FullAdder extends Module{
     /* 
      * TODO: Define IO ports of a half adder as presented in the lecture
      */
+     val a = Input(UInt(1.W))
+     val b = Input(UInt(1.W))
+     val ci = Input(UInt(1.W))
+     val s = Output(UInt(1.W))
+     val co = Output(UInt(1.W))
     })
 
 
   /* 
    * TODO: Instanciate the two half adders you want to use based on your HalfAdder class
    */
-
+   val halfadder1 = Module(new HalfAdder())
+   val halfadder2 = Module(new HalfAdder())
 
   /* 
    * TODO: Describe output behaviour based on the input values and the internal signals
    */
+   halfadder1.io.a := io.a
+   halfadder1.io.b := io.b
+   val temps = halfadder1.io.s
+   val tempc = halfadder1.io.c
+
+   halfadder2.io.a := temps
+   halfadder2.io.b := io.ci
+   io.s := halfadder2.io.s
+   io.co := halfadder2.io.c ^ tempc
 
 }
 
