@@ -100,14 +100,45 @@ class FourBitAdder extends Module{
     /* 
      * TODO: Define IO ports of a 4-bit ripple-carry-adder as presented in the lecture
      */
+     val a = Input(UInt(4.W))
+     val b = Input(UInt(4.W))
+     val s = Output(UInt(4.W))
+     val c = Output(UInt(1.W))
     })
 
   /* 
    * TODO: Instanciate the full adders and one half adderbased on the previously defined classes
    */
+   val halfadder = Module(new HalfAdder())
+   val fulladder1 = Module(new FullAdder())
+   val fulladder2 = Module(new FullAdder())
+   val fulladder3 = Module(new FullAdder())
 
 
   /* 
    * TODO: Describe output behaviour based on the input values and the internal 
    */
+   halfadder.io.a := io.a(0)
+   halfadder.io.b := io.b(0)
+
+   fulladder1.io.a := io.a(1)
+   fulladder1.io.b := io.b(1)
+   fulladder1.io.ci := halfadder.io.c
+   
+   fulladder2.io.a := io.a(2)
+   fulladder2.io.b := io.b(2)
+   fulladder2.io.ci := fulladder1.io.co
+   
+   fulladder3.io.a := io.a(3)
+   fulladder3.io.b := io.b(3)
+   fulladder3.io.ci := fulladder2.io.co
+
+  //  var result = UInt(4.W)
+  //  result = fulladder3.io.s
+  //  result = (result << 1) + fulladder2.io.s
+  //  result = (result << 1) + fulladder1.io.s
+  //  result = (result << 1) + halfadder.io.s
+  //  io.s := result
+   io.s := ((fulladder3.io.s << 3) | (fulladder2.io.s << 2) | (fulladder1.io.s << 1) | halfadder.io.s)
+   io.c := fulladder3.io.co
 }
