@@ -29,31 +29,12 @@ class Controller extends Module{
    * TODO: Define internal variables (registers and/or wires), if needed
    */
    var enabler = RegInit(0.U(1.W))
-  //  var enabler = 0
 
   // state machine
   /* 
    * TODO: Describe functionality if the controller as a state machine
    */
    when(io.reset_n === 0.U) {
-    // when(io.cnt_s === "b111".U) {
-    //   io.valid := 1.U
-    //   io.cnt_en := 0.U
-    //   enabler = 0
-    // } .elsewhen(io.rxd === 0.U) {
-    //   io.valid := 0.U
-    //   io.cnt_en := 1.U
-    //   printf("am i even here")
-    //   enabler = 1
-    // } .elsewhen(enabler.asUInt(1.W) === 1.U) {
-    //   io.valid := 0.U
-    //   io.cnt_en := 1.U
-    //   enabler = 1
-    // } .otherwise {
-    //   io.valid := 0.U
-    //   io.cnt_en := 0.U
-    //   enabler = 0
-    // }
     io.cnt_en := Mux((io.rxd === 0.U || enabler === 1.U) && io.cnt_s =/= "b111".U, 1.U, 0.U)
     when(io.rxd === 0.U) {
       enabler := 1.U
@@ -104,23 +85,9 @@ class Counter extends Module{
    } .otherwise {
     value := "b000".U
    }
-  //  printf("value0 = %b \n", value)
-   io.cnt_s := value
-   
-  //  when(io.reset_n === 0.U) {
-  //   when(io.cnt_en === 1.U && enabler === false.B) {
-  //     enabler := true.B
-  //   } .elsewhen(enabler === true.B) {
-  //     value := (value + 1.U)
-  //   }
-  //  } otherwise {
-  //   value := "b01010".U
-  //   enabler := false.B
-  //  }
-  //   io.cnt_s := (value - 1.U) % 9.U
 
+   io.cnt_s := value
     when(value === "b111".U) {
-      // enabler := 0.U
       value := "b000".U
     }
 }
