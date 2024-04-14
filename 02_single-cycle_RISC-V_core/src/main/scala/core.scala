@@ -108,14 +108,17 @@ class RV32Icore (BinaryFile: String) extends Module {
    * TODO: Add missing R-Type instructions here
    */
   val isSUB  = (opcode === "b0110011".U && funct3 === "b000".U && funct7 === "b0100000".U)
-  val isSLL  = (opcode === "b0110011".U && funct3 === "b001".U && funct7 === "b0000000".U)
+
+  val isAND  = (opcode === "b0110011".U && funct3 === "b111".U && funct7 === "b0000000".U)
+  val isOR  = (opcode === "b0110011".U && funct3 === "b110".U && funct7 === "b0000000".U)
+  val isXOR  = (opcode === "b0110011".U && funct3 === "b100".U && funct7 === "b0000000".U)
+
   val isSLT  = (opcode === "b0110011".U && funct3 === "b010".U && funct7 === "b0000000".U)
   val isSLTU  = (opcode === "b0110011".U && funct3 === "b011".U && funct7 === "b0000000".U)
-  val isXOR  = (opcode === "b0110011".U && funct3 === "b100".U && funct7 === "b0000000".U)
+
+  val isSLL  = (opcode === "b0110011".U && funct3 === "b001".U && funct7 === "b0000000".U)
   val isSRL  = (opcode === "b0110011".U && funct3 === "b101".U && funct7 === "b0000000".U)
   val isSRA  = (opcode === "b0110011".U && funct3 === "b101".U && funct7 === "b0100000".U)
-  val isOR  = (opcode === "b0110011".U && funct3 === "b110".U && funct7 === "b0000000".U)
-  val isAND  = (opcode === "b0110011".U && funct3 === "b111".U && funct7 === "b0000000".U)
 
 
   val isADDI = (opcode === "b0010011".U && funct3 === "b000".U)
@@ -156,8 +159,7 @@ class RV32Icore (BinaryFile: String) extends Module {
   }.elsewhen(isSRL) {
     aluResult := operandA >> operandB(4,0)
   }.elsewhen(isSRA) {
-    val opA = operandA.asSInt
-    aluResult := (opA >> operandB(4,0)).asUInt
+    aluResult := ((operandA.asSInt) >> operandB(4,0)).asUInt
   }.elsewhen(isOR) {
     aluResult := operandA | operandB
   }.elsewhen(isAND) {
