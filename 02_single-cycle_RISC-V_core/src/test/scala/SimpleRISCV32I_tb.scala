@@ -76,6 +76,36 @@ class SimpleRISCV32ITest extends AnyFlatSpec with ChiselScalatestTester {
       dut.io.result.expect(2.U)     // SRL x6, x6, x7
       dut.clock.step(1)
       dut.io.result.expect(0.U)     // SRL x7, x0, x5
+      
+      dut.clock.step(1)
+      dut.io.result.expect(12.U)     // ADD x4, x4, x6
+
+      dut.clock.step(1)
+      dut.io.result.expect("b111111111111".U)     // ADDI x7, x0, 4095
+      dut.clock.step(1)
+      dut.io.result.expect(16773120.U)     // SLL x7, x7, x4   "b111111111111000000000000"  16773120
+      dut.clock.step(1)
+      dut.io.result.expect(16777215.U)     // ADDI x7, x7, "b111111111111"    "b111111111111111111111111"  16777215
+      dut.clock.step(1)
+      dut.io.result.expect("b11111111111111111111111000000000".U)     // SLL x7, x7, x3   "b11111111111111111111111000000000"  -512
+      dut.clock.step(1)
+      dut.io.result.expect("b11111111111111111111111111111111".U)     // ADDI x7, x7, "b000111111111"    "b11111111111111111111111111111111"  4294967295
+      dut.clock.step(1)
+      dut.io.result.expect("b11111111111111111111111111111111".U)     // SRA x7, x7, x3    "b11111111111111111111111111111111"  4294967295
+      dut.clock.step(1)
+      dut.io.result.expect(0.U)     // SRA x8, x3, x3
+      dut.clock.step(1)
+      dut.io.result.expect(6.U)     // SRA x8, x4, x5
+      
+      dut.clock.step(1)
+      dut.io.result.expect(1.U)     // SLT x8, x7, x5
+      dut.clock.step(1)
+      dut.io.result.expect(0.U)     // SLT x8, x5, x7
+      dut.clock.step(1)
+      dut.io.result.expect(1.U)     // SLTU x8, x5, x7
+      dut.clock.step(1)
+      dut.io.result.expect(0.U)     // SLTU x8, x7, x5
+
         /* 
          * TODO: Add testcases for all R-type instructions in 'BinaryFile' and check the expected results here
          */
@@ -91,7 +121,8 @@ class SimpleRISCV32ITest extends AnyFlatSpec with ChiselScalatestTester {
 // x1 = 4  0100
 // x2 = 5  0101
 // x3 = 9  1001
-// x4 = 10 1010
+// x4 = 12 1100
 // x5 = 1  0001
 // x6 = 2  0010
-// x7 = 0  0000
+// x7 = 4294967295  11111111111111111111111111111111 -1  FFFFFFFF
+// x8 = 0  0000

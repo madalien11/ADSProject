@@ -159,7 +159,7 @@ class RV32Icore (BinaryFile: String) extends Module {
   }.elsewhen(isSRL) {
     aluResult := operandA >> operandB(4,0)
   }.elsewhen(isSRA) {
-    aluResult := ((operandA.asSInt) >> operandB(4,0)).asUInt
+    aluResult := ((operandA.asSInt) >> operandB.asSInt()(4,0)).asUInt
   }.elsewhen(isOR) {
     aluResult := operandA | operandB
   }.elsewhen(isAND) {
@@ -169,7 +169,7 @@ class RV32Icore (BinaryFile: String) extends Module {
   }.elsewhen(isSLT) {
     aluResult := Mux(operandB.asSInt =/= 0.S, Mux(operandA.asSInt < operandB.asSInt, 1.S, 0.S), 0.S).asUInt
   }.elsewhen(isSLTU) {
-    aluResult := Mux(operandA < operandB, 1.U, 0.U)
+    aluResult := operandA < operandB
   }.elsewhen(isNOP) {
     aluResult := operandA + operandB
   }.otherwise {
