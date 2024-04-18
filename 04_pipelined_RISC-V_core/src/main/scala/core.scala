@@ -97,20 +97,27 @@ import uopc._
 
 class regFileReadReq extends Bundle {
     // what signals does a read request need?
+    val readAddress = Input(UInt(5.W))
 }
 
 class regFileReadResp extends Bundle {
     // what signals does a read response need?
+    val readData = Output(UInt(32.W))
 }
 
 class regFileWriteReq extends Bundle {
     // what signals does a write request need?
+    val writeAddress = Input(UInt(5.W))
+    val writeData = Input(UInt(32.W))
 }
 
 class regFile extends Module {
   val io = IO(new Bundle {
-    val req  = new regFileReadReq
-    val resp = new regFileReadResp
+    val req1  = new regFileReadReq
+    val resp1 = new regFileReadResp
+    val req2  = new regFileReadReq
+    val resp2 = new regFileReadResp
+    val writeReq = new regFileWriteReq
     // how many read and write ports do you need to handle all requests
     // from the ipeline to the register file simultaneously?
 })
@@ -119,6 +126,15 @@ class regFile extends Module {
     TODO: Initialize the register file as described in the task 
           and handle the read and write requests
    */
+  val regFile = Mem(32, UInt(32.W))
+  regFile.write(0.U, 0.U)
+
+  when(io.writeReq.writeAddress =/= 0.U){ regFile(io.writeReq.writeAddress) := io.writeReq.writeData }
+
+  io.resp1.readData := 0.U
+  io.resp2.readData := 0.U
+  when(io.req1.readAddress =/= 0.U){ io.resp1.readData := registerFile(io.req1.readAddress) }
+  when(io.req2.readAddress =/= 0.U){ io.resp2.readData := registerFile(io.req2.readAddress) }
   
 }
 
@@ -130,6 +146,8 @@ class regFile extends Module {
 class IF (BinaryFile: String) extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
+    val instr = Output(UInt(32.W))
+    val PC = Output(UInt(32.W))
   })
 
   /* 
@@ -139,6 +157,14 @@ class IF (BinaryFile: String) extends Module {
     TODO: Update the program counter (no jumps or branches, 
           next PC always reads next address from IMEM)
    */
+   val IMem = Mem(4096, UInt(32.W))
+   loadMemoryFromFile(IMem, BinaryFile)
+
+   val PC = RegInit(UInt(32.W), 0.U)
+
+   io.PC := PC
+   io.instr := IMem(PC>>2.U)     
+   PC := PC + 4.U
   
 }
 
@@ -147,38 +173,79 @@ class IF (BinaryFile: String) extends Module {
 // Decode Stage
 // -----------------------------------------
 
+// The register file requests are generated based on the operands in the instruction.
 class ID extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
+        val PCIn = Input(UInt(32.W))
+        val instr = Input(UInt(32.W))
+        // val writeData = Input(UInt(32.W))
+        // val writeAddress = Input(UInt(32.W))
+        
+        val PCOut = Output(UInt(32.W))
+        val upo = Output(new uopc)
+        // val op1SelectOut      = Output(UInt(1.W))
+        // val op2SelectOut      = Output(UInt(1.W))
+        // val immTypeOut        = Output(UInt(3.W))
+        // val ALUopOut          = Output(UInt(4.W))
+
+        val operandA    = Output(UInt(32.W))
+        val operandB    = Output(UInt(32.W))
   })
 
   /* 
    * TODO: Any internal signals needed?
    */
+  val opcode = instr(6, 0)
+  val rd := instr(11, 7)
+  val funct3 = instr(14, 12)
+  val rs1 = instr(19, 15)
+  val rs2 = instr(24, 20)
+  val funct7 = instr(31, 25)
 
   /* 
     Determine the uop based on the disassembled instruction
-
-    when( condition ){
-      when( next condition ){
-        io.upo := isXYZ
-      }.otherwise{
-        maybe declare a case to catch invalid instructions
-      } 
-    }.elsewhen( different condition ){
-      when( next condition ){
-        io.upo := isXYZ
-      }.otherwise{
-        maybe declare a case to catch invalid instructions
-      } 
+    */
+  when( opcode === "b0110011".U ){
+    when( funct3 === "b000".U && funct7 === "b0000000".U ){
+      io.upo := isADD
+    }.elsewhen( funct3 === "b000".U && funct7 === "b0100000".U ){
+      io.upo := isSUB
+    }.elsewhen( funct3 === "b111".U && funct7 === "b0000000".U ){
+      io.upo := isAND
+    }.elsewhen( funct3 === "b110".U && funct7 === "b0000000".U ){
+      io.upo := isOR
+    }.elsewhen( funct3 === "b100".U && funct7 === "b0000000".U ){
+      io.upo := isXOR
+    }.elsewhen( funct3 === "b010".U && funct7 === "b0000000".U ){
+      io.upo := isSLT
+    }.elsewhen( funct3 === "b011".U && funct7 === "b0000000".U ){
+      io.upo := isSLTU
+    }.elsewhen( funct3 === "b001".U && funct7 === "b0000000".U ){
+      io.upo := isSLL
+    }.elsewhen( funct3 === "b101".U && funct7 === "b0000000".U ){
+      io.upo := isSRL
+    }.elsewhen( funct3 === "b101".U && funct7 === "b0100000".U ){
+      io.upo := isSRA
     }.otherwise{
-      maybe declare a case to catch invalid instructions
-    }
-  */
+      io.upo := invalid
+    } 
+  }.elsewhen( opcode === "b0010011".U ){
+    when( funct3 === "b000".U ){
+      io.upo := isADDI
+    }.otherwise{
+      io.upo := invalid
+    } 
+  }.otherwise{
+    io.upo := invalid
+  }
 
   /* 
    * TODO: Read the operands from teh register file
    */
+   io.PCOut := io.PCIn
+   operandA := regFile.read(rs1)
+   operandB := Mux(opcode === "b0010011".U, instr(31, 20), regFile.read(rs2))
   
 }
 
