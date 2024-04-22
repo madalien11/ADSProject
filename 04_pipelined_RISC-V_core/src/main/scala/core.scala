@@ -133,8 +133,8 @@ class regFile extends Module {
 
   io.resp1.readData := 0.U
   io.resp2.readData := 0.U
-  when(io.req1.readAddress =/= 0.U){ io.resp1.readData := registerFile(io.req1.readAddress) }
-  when(io.req2.readAddress =/= 0.U){ io.resp2.readData := registerFile(io.req2.readAddress) }
+  when(io.req1.readAddress =/= 0.U){ io.resp1.readData := regFile(io.req1.readAddress) }
+  when(io.req2.readAddress =/= 0.U){ io.resp2.readData := regFile(io.req2.readAddress) }
   
 }
 
@@ -173,35 +173,28 @@ class IF (BinaryFile: String) extends Module {
 // Decode Stage
 // -----------------------------------------
 
-// The register file requests are generated based on the operands in the instruction.
 class ID extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
         val PCIn = Input(UInt(32.W))
         val instr = Input(UInt(32.W))
-        // val writeData = Input(UInt(32.W))
-        // val writeAddress = Input(UInt(32.W))
         
         val PCOut = Output(UInt(32.W))
-        val upo = Output(new uopc)
-        // val op1SelectOut      = Output(UInt(1.W))
-        // val op2SelectOut      = Output(UInt(1.W))
-        // val immTypeOut        = Output(UInt(3.W))
-        // val ALUopOut          = Output(UInt(4.W))
-
+        val upo = Output(uopc())
         val operandA    = Output(UInt(32.W))
         val operandB    = Output(UInt(32.W))
+        val rd    = Output(UInt(5.W))
   })
 
   /* 
    * TODO: Any internal signals needed?
    */
-  val opcode = instr(6, 0)
-  val rd := instr(11, 7)
-  val funct3 = instr(14, 12)
-  val rs1 = instr(19, 15)
-  val rs2 = instr(24, 20)
-  val funct7 = instr(31, 25)
+  val opcode = io.instr(6, 0)
+  io.rd := io.instr(11, 7)
+  val funct3 = io.instr(14, 12)
+  val rs1 = io.instr(19, 15)
+  val rs2 = io.instr(24, 20)
+  val funct7 = io.instr(31, 25)
 
   /* 
     Determine the uop based on the disassembled instruction
@@ -243,9 +236,17 @@ class ID extends Module {
   /* 
    * TODO: Read the operands from teh register file
    */
+   val registers = Module(new regFile)
+   val req1 = new regFileReadReq
+   val req2 = new regFileReadReq
+   req1.readAddress := rs1
+   req2.readAddress := rs2
+   registers.io.req1 := req1
+   registers.io.req2 := req2
+
    io.PCOut := io.PCIn
-   operandA := regFile.read(rs1)
-   operandB := Mux(opcode === "b0010011".U, instr(31, 20), regFile.read(rs2))
+   io.operandA := registers.io.resp1.readData
+   io.operandB := Mux(opcode === "b0010011".U, io.instr(31, 20), registers.io.resp2.readData)
   
 }
 
@@ -256,19 +257,44 @@ class ID extends Module {
 class EX extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
+    val operandA    = Input(UInt(32.W))
+    val operandB    = Input(UInt(32.W))
+    val upo = Input(uopc())
+    val aluResult = Output(UInt(32.W))
   })
 
   /* 
     TODO: Perform the ALU operation based on the uopc
+    */
 
-    when( uopc === isXYZ ){
-      result := operandA + operandB
-    }.elsewhen( uopc === isABC ){
-      result := operandA - operandB
-    }.otherwise{
-      maybe also declare a case to catch invalid instructions
-    }
-  */
+  when(io.upo === isADDI) { 
+    io.aluResult := io.operandA + io.operandB 
+  }.elsewhen(io.upo === isADD) {                           
+    io.aluResult := io.operandA + io.operandB
+  }.elsewhen(io.upo === isSUB) {
+    io.aluResult := io.operandA - io.operandB 
+  }.elsewhen(io.upo === isSLL) {
+    io.aluResult := io.operandA << io.operandB(4,0)
+  }.elsewhen(io.upo === isSRL) {
+    io.aluResult := io.operandA >> io.operandB(4,0)
+  }.elsewhen(io.upo === isSRA) {
+    io.aluResult := ((io.operandA.asSInt) >> io.operandB.asSInt()(4,0)).asUInt
+  }.elsewhen(io.upo === isOR) {
+    io.aluResult := io.operandA | io.operandB
+  }.elsewhen(io.upo === isAND) {
+    io.aluResult := io.operandA & io.operandB
+  }.elsewhen(io.upo === isXOR) {
+    io.aluResult := io.operandA ^ io.operandB
+  }.elsewhen(io.upo === isSLT) {
+    io.aluResult := Mux(io.operandB.asSInt =/= 0.S, Mux(io.operandA.asSInt < io.operandB.asSInt, 1.S, 0.S), 0.S).asUInt
+  }.elsewhen(io.upo === isSLTU) {
+    io.aluResult := io.operandA < io.operandB
+  }.elsewhen(io.upo === invalid) {
+    io.aluResult := io.operandA + io.operandB
+  }.otherwise {
+    io.aluResult := "hFFFFFFFF".U
+  }
+  
 }
 
 // -----------------------------------------
@@ -292,12 +318,19 @@ class MEM extends Module {
 class WB extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
+    val aluResult = Input(UInt(32.W))
+    val rd = Input(UInt(5.W))
   })
 
   /* 
    * TODO: Perform the write back to the register file and set 
    *       the check_res signal for the testbench.
    */
+   val registers = Module(new regFile)
+   val req = new regFileWriteReq
+   req.writeAddress := io.rd
+   req.writeData := io.aluResult
+   registers.io.writeReq := req
 
 }
 
