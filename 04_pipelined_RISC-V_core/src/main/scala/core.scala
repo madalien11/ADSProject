@@ -113,11 +113,11 @@ class regFileWriteReq extends Bundle {
 
 class regFile extends Module {
   val io = IO(new Bundle {
-    val req1  = new regFileReadReq
-    val resp1 = new regFileReadResp
-    val req2  = new regFileReadReq
-    val resp2 = new regFileReadResp
-    val writeReq = new regFileWriteReq
+    val req1  = Input(new regFileReadReq)
+    val resp1 = Output(new regFileReadResp)
+    val req2  = Input(new regFileReadReq)
+    val resp2 = Output(new regFileReadResp)
+    val writeReq = Input(new regFileWriteReq)
     // how many read and write ports do you need to handle all requests
     // from the ipeline to the register file simultaneously?
 })
@@ -147,7 +147,7 @@ class IF (BinaryFile: String) extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
     val instr = Output(UInt(32.W))
-    val PC = Output(UInt(32.W))
+    // val PC = Output(UInt(32.W))
   })
 
   /* 
@@ -162,7 +162,7 @@ class IF (BinaryFile: String) extends Module {
 
    val PC = RegInit(UInt(32.W), 0.U)
 
-   io.PC := PC
+  //  io.PC := PC
    io.instr := IMem(PC>>2.U)     
    PC := PC + 4.U
   
@@ -176,10 +176,12 @@ class IF (BinaryFile: String) extends Module {
 class ID extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this pipeline stage need?
-        val PCIn = Input(UInt(32.W))
         val instr = Input(UInt(32.W))
-        
-        val PCOut = Output(UInt(32.W))
+        val req1 = Output(new regFileReadReq)
+        val req2 = Output(new regFileReadReq)
+        val resp1 = Input(new regFileReadResp)
+        val resp2 = Input(new regFileReadResp)
+
         val upo = Output(uopc())
         val operandA    = Output(UInt(32.W))
         val operandB    = Output(UInt(32.W))
@@ -236,17 +238,11 @@ class ID extends Module {
   /* 
    * TODO: Read the operands from teh register file
    */
-   val registers = Module(new regFile)
-   val req1 = new regFileReadReq
-   val req2 = new regFileReadReq
-   req1.readAddress := rs1
-   req2.readAddress := rs2
-   registers.io.req1 := req1
-   registers.io.req2 := req2
+   io.req1.readAddress := rs1
+   io.req2.readAddress := rs2
 
-   io.PCOut := io.PCIn
-   io.operandA := registers.io.resp1.readData
-   io.operandB := Mux(opcode === "b0010011".U, io.instr(31, 20), registers.io.resp2.readData)
+   io.operandA := io.resp1.readData
+   io.operandB := Mux(opcode === "b0010011".U, io.instr(31, 20), io.resp2.readData)
   
 }
 
@@ -292,7 +288,7 @@ class EX extends Module {
   }.elsewhen(io.upo === invalid) {
     io.aluResult := io.operandA + io.operandB
   }.otherwise {
-    io.aluResult := "hFFFFFFFF".U
+    io.aluResult := "h_0000_0000".U
   }
   
 }
@@ -320,17 +316,17 @@ class WB extends Module {
     // What inputs and / or outputs does this pipeline stage need?
     val aluResult = Input(UInt(32.W))
     val rd = Input(UInt(5.W))
+    val check_res = Output(UInt(32.W))
+    val req = Output(new regFileWriteReq)
   })
 
   /* 
    * TODO: Perform the write back to the register file and set 
    *       the check_res signal for the testbench.
    */
-   val registers = Module(new regFile)
-   val req = new regFileWriteReq
-   req.writeAddress := io.rd
-   req.writeData := io.aluResult
-   registers.io.writeReq := req
+   io.req.writeAddress := io.rd
+   io.req.writeData := io.aluResult
+   io.check_res := io.aluResult
 
 }
 
@@ -342,6 +338,8 @@ class WB extends Module {
 class IFBarrier extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this barrier need?
+    val instrIn = Input(UInt(32.W))
+    val instrOut = Output(UInt(32.W))
   })
 
   /* 
@@ -349,6 +347,10 @@ class IFBarrier extends Module {
    *
    * TODO: Fill registers from the inputs and write regioster values to the outputs
    */
+   val instr = RegInit(UInt(32.W), 0.U)
+   instr := io.instrIn
+   io.instrOut := instr
+
 
 }
 
@@ -360,6 +362,15 @@ class IFBarrier extends Module {
 class IDBarrier extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this barrier need?
+    val upoIn = Input(uopc())
+    val operandAIn    = Input(UInt(32.W))
+    val operandBIn    = Input(UInt(32.W))
+    val rdIn    = Input(UInt(5.W))
+    
+    val upoOut = Output(uopc())
+    val operandAOut    = Output(UInt(32.W))
+    val operandBOut    = Output(UInt(32.W))
+    val rdOut    = Output(UInt(5.W))
   })
 
   /* 
@@ -367,8 +378,23 @@ class IDBarrier extends Module {
    *
    * TODO: Fill registers from the inputs and write regioster values to the outputs
    */
+  val upo = RegInit(uopc(), uopc.invalid)
+  val operandA = RegInit(UInt(32.W), 0.U)
+  val operandB = RegInit(UInt(32.W), 0.U)
+  val rd = RegInit(UInt(5.W), 0.U)
+
+  upo := io.upoIn  
+  operandA := io.operandAIn
+  operandB := io.operandBIn
+  rd := io.rdIn
+
+  io.upoOut := upo
+  io.operandAOut := operandA
+  io.operandBOut := operandB
+  io.rdOut := rd
 
 }
+
 
 
 // -----------------------------------------
@@ -378,6 +404,10 @@ class IDBarrier extends Module {
 class EXBarrier extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this barrier need?
+    val aluResultIn = Input(UInt(32.W))
+    val aluResultOut = Output(UInt(32.W))
+    val rdIn    = Input(UInt(5.W))
+    val rdOut    = Output(UInt(5.W))
   })
 
   /* 
@@ -385,7 +415,13 @@ class EXBarrier extends Module {
    *
    * TODO: Fill registers from the inputs and write regioster values to the outputs
   */
+  val aluResult = RegInit(UInt(32.W), 0.U)
+  aluResult := io.aluResultIn
+  io.aluResultOut := aluResult
 
+  val rd = RegInit(UInt(5.W), 0.U)
+  rd := io.rdIn
+  io.rdOut := rd
 }
 
 
@@ -414,6 +450,8 @@ class MEMBarrier extends Module {
 class WBBarrier extends Module {
   val io = IO(new Bundle {
     // What inputs and / or outputs does this barrier need?
+    val check_resIn = Input(UInt(32.W))
+    val check_resOut = Output(UInt(32.W))
   })
 
   /* 
@@ -421,6 +459,9 @@ class WBBarrier extends Module {
    *
    * TODO: Fill registers from the inputs and write regioster values to the outputs
   */
+  val check_res = RegInit(UInt(32.W), 0.U)
+  check_res := io.check_resIn
+  io.check_resOut := check_res
 
 }
 
@@ -435,23 +476,62 @@ class PipelinedRV32Icore (BinaryFile: String) extends Module {
   /* 
    * TODO: Instantiate Barriers
    */
+   val IFb = Module(new IFBarrier)
+   val IDb = Module(new IDBarrier)
+   val EXb = Module(new EXBarrier)
+   val MEMb = Module(new MEMBarrier)
+   val WBb = Module(new WBBarrier)
 
 
   /* 
    * TODO: Instantiate Pipeline Stages
    */
 
+   val If = Module(new IF(BinaryFile))
+   val Id = Module(new ID)
+   val Ex = Module(new EX)
+   val Mem = Module(new MEM)
+   val Wb = Module(new WB)
+
 
   /* 
    * TODO: Instantiate Register File
    */
+   val registers = Module(new regFile)
+   val req1 = Wire(new regFileReadReq)
+   val req2 = Wire(new regFileReadReq)
+   val reqW = Wire(new regFileWriteReq)
+   req1.readAddress := Id.io.req1.readAddress
+   req2.readAddress := Id.io.req2.readAddress
+   reqW.writeAddress := Wb.io.req.writeAddress
+   reqW.writeData := Wb.io.req.writeData
 
-  io.check_res := 0.U // necessary to make the empty design buildable TODO: change this
+   registers.io.req1 := req1
+   registers.io.req2 := req2
+   registers.io.writeReq := reqW
+
+  io.check_res := WBb.io.check_resOut // necessary to make the empty design buildable TODO: change this
 
   /* 
    * TODO: Connect all IOs between the stages, barriers and register file.
    * Do not forget the global output of the core module
    */
+   IFb.io.instrIn := If.io.instr
+   Id.io.instr := IFb.io.instrOut
+   Id.io.resp1 := registers.io.resp1
+   Id.io.resp2 := registers.io.resp2
+   IDb.io.upoIn := Id.io.upo
+   IDb.io.operandAIn := Id.io.operandA
+   IDb.io.operandBIn := Id.io.operandB
+   IDb.io.rdIn := Id.io.rd
+   Ex.io.operandA := IDb.io.operandAOut
+   Ex.io.operandB := IDb.io.operandBOut
+   Ex.io.upo := IDb.io.upoOut
+   EXb.io.aluResultIn := Ex.io.aluResult
+   EXb.io.rdIn := IDb.io.rdOut
+   Wb.io.aluResult := EXb.io.aluResultOut
+   Wb.io.rd := EXb.io.rdOut
+   WBb.io.check_resIn := Wb.io.check_res
 
 }
 
